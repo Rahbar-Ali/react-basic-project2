@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 import { getFullPokedexNumber, getPokedexNumber } from "../util";
 import TypeCard from "./TypeCard";
+import Model from "./Model";
 
 const PokeCard = ({ selectedPokemon }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [skill, setSkill] = useState(null);
+  const [loadingSkill, setLoadingSkill] = useState(false);
 
   const { name, height, abilities, stats, types, moves, sprites } = data || {};
 
@@ -17,6 +20,46 @@ const PokeCard = ({ selectedPokemon }) => {
     }
     return true;
   });
+
+  async function fetchDataMove(move, moveUrl) {
+    if (loadingSkill || !localStorage || !moveUrl) {
+      return;
+    }
+
+    let c = {};
+    if (localStorage.getItem("pokemon-moves")) {
+      c = JSON.parse(localStorage.getItem("pokemon-moves"));
+    }
+
+    if (move in c) {
+      setSkill(c[move]);
+      console.log("Found move in cache");
+      return;
+    }
+
+    try {
+      setLoadingSkill(true);
+      const res = await fetch(moveUrl);
+      const moveData = await res.json();
+      console.log("Fetched move API", moveData);
+      const description = moveData?.flavor_text_entries.filter((val) => {
+        return (val.version_group.name = "firered-leafgreen");
+      })[0]?.flavor_text;
+
+      const skillData = {
+        name: move,
+        description,
+      };
+
+      setSkill(skillData);
+      c[move] = skillData;
+      localStorage.setItem("pokemon-moves", JSON.stringify(c));
+    } catch (error) {
+      console.log(err);
+    } finally {
+      setLoadingSkill(false);
+    }
+  }
 
   useEffect(() => {
     if (loading || !localStorage) {
@@ -68,6 +111,22 @@ const PokeCard = ({ selectedPokemon }) => {
 
   return (
     <div className="poke-card">
+      {skill && (
+        <Model
+          handleCloseModel={() => {
+            setSkill(null);
+          }}
+        >
+          <div>
+            <h6>name</h6>
+            <h2>{skill.name.replaceAll("-", " ")}</h2>
+          </div>
+          <div>
+            <h6>Description</h6>
+            <p>{skill.description}</p>
+          </div>
+        </Model>
+      )}
       <div>
         <h4>#{getFullPokedexNumber(selectedPokemon)}</h4>
         <h2>{name}</h2>
@@ -107,7 +166,9 @@ const PokeCard = ({ selectedPokemon }) => {
             <button
               className="button-card pokemon-move"
               key={moveIndex}
-              onClick={() => {}}
+              onClick={() => {
+                fetchDataMove(moveObj?.move?.name, moveObj?.move?.url);
+              }}
             >
               <p>{moveObj?.move?.name.replaceAll("-", " ")}</p>
             </button>
